@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
@@ -70,8 +69,12 @@ type GPTChoice struct {
 
 func main() {
 	fmt.Println("Diff Generator running...")
-	// load environment variables
-	loadEnv()
+	// Check environment variables loaded
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		// Give instructions on how to set environment variables
+		fmt.Printf("Please set the OPENAI_API_KEY environment variable by running 'export OPEN_API_KEY=sk...\n")
+		log.Fatal("OPENAI_API_KEY environment variable not set")
+	}
 
 	// First ask if the user wants to add all files or if they have already added them
 	fmt.Printf("Have you already added all files? (y/n): ")
@@ -167,11 +170,4 @@ func GenerateDiff(diff string) (string, error) {
 	}
 
 	return "", nil
-}
-
-func loadEnv() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 }
