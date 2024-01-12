@@ -68,9 +68,23 @@ type GPTChoice struct {
 }
 
 func main() {
-	fmt.Println("Diff Generator")
+	fmt.Println("Diff Generator running...")
 	// load environment variables
 	loadEnv()
+
+	// First ask if the user wants to add all files or if they have already added them
+	fmt.Printf("Have you already added all files? (y/n): ")
+	var answer string
+	_, err := fmt.Scanln(&answer)
+	if err != nil {
+		return
+	}
+	if answer == "n" {
+		// Add all files
+		out, _ := exec.Command("git", "add", ".").Output()
+		fmt.Printf("Added all files: %s\n", out)
+	}
+
 	// Get diff of changes
 	out, _ := exec.Command("git", "diff", "HEAD~1..HEAD").Output()
 	diff := string(out)
@@ -89,8 +103,9 @@ func main() {
 
 	fmt.Printf("Commit message: %s\n", commitMessage)
 
-	// Commit changes
-	//out, _ = exec.Command("git", "commit", "-m", commitMessage).Output()
+	//Commit changes
+	out, _ = exec.Command("git", "commit", "-m", commitMessage).Output()
+	fmt.Printf("Changes committed: %s\n", out)
 }
 
 func GenerateDiff(diff string) (string, error) {
