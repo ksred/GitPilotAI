@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 const ApiModel = "gpt-3.5-turbo"
@@ -85,8 +86,18 @@ func main() {
 		fmt.Printf("Added all files: %s\n", out)
 	}
 
+	// Check if there are any changes in git status
+	out, _ := exec.Command("git", "status").Output()
+	status := string(out)
+	fmt.Printf("Git status: %s\n", status)
+	// If no changes, exit. Check if the string contains "nothing to commit, working tree clean\n"
+	if strings.Contains(status, "nothing to commit, working tree clean") {
+		fmt.Printf("No changes detected\n")
+		return
+	}
+
 	// Get diff of changes
-	out, _ := exec.Command("git", "diff", "HEAD~1..HEAD").Output()
+	out, _ = exec.Command("git", "diff", "HEAD~1..HEAD").Output()
 	diff := string(out)
 	fmt.Printf("Diff: %s\n", diff)
 
