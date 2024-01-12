@@ -60,7 +60,7 @@ type GPTMessage struct {
 
 type GPTResponse struct {
 	Choices []GPTChoice `json:"choices"`
-	Error   string      `json:"error"`
+	Error   interface{} `json:"error"`
 }
 
 type GPTChoice struct {
@@ -106,6 +106,10 @@ func main() {
 	//Commit changes
 	out, _ = exec.Command("git", "commit", "-m", commitMessage).Output()
 	fmt.Printf("Changes committed: %s\n", out)
+
+	// Push changes
+	out, _ = exec.Command("git", "push").Output()
+	fmt.Printf("Changes pushed: %s\n", out)
 }
 
 func GenerateDiff(diff string) (string, error) {
@@ -141,7 +145,9 @@ func GenerateDiff(diff string) (string, error) {
 		return "", fmt.Errorf("error decoding API response: %v", err)
 	}
 
-	if apiResp.Error != "" {
+	fmt.Printf("API Response: %v\n", apiResp)
+
+	if apiResp.Error != nil {
 		return "", fmt.Errorf("error from API: %s", apiResp.Error)
 	}
 
