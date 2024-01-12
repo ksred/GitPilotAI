@@ -97,7 +97,7 @@ func main() {
 	}
 
 	// Get diff of changes
-	out, _ = exec.Command("git", "diff", "HEAD~1..HEAD").Output()
+	out, _ = exec.Command("git", "diff", "--staged").Output()
 	diff := string(out)
 	fmt.Printf("Diff: %s\n", diff)
 
