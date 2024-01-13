@@ -1,4 +1,4 @@
-# README for GitPilotAI 🚀
+# RGitPilotAI 🚀
 
 Welcome to **GitPilotAI**! This is not just another Git tool; it's your AI-powered assistant for handling Git operations with a sprinkle of fun and efficiency. 🤖✨
 
@@ -39,13 +39,13 @@ Welcome to **GitPilotAI**! This is not just another Git tool; it's your AI-power
 3. Build the binary:
 
    ```bash
-   go build
+   go build -o gitpilotai
    ```
 
 4. Move the binary to a location in your PATH (e.g., `/usr/local/bin`):
 
    ```bash
-   mv GitPilotAI /usr/local/bin/
+   mv gitpilotai /usr/local/bin/
    ```
 
 #### For Windows Users
@@ -59,13 +59,13 @@ Welcome to **GitPilotAI**! This is not just another Git tool; it's your AI-power
 2. Navigate to the directory:
 
    ```bash
-   cd GitPilotAI
+   cd gitpilotai
    ```
 
 3. Build the binary:
 
    ```bash
-   go build
+   go build -o gitpilotai
    ```
 
 4. Add the directory to your system PATH, or move the `.exe` file to a directory already in your PATH.
@@ -75,7 +75,7 @@ Welcome to **GitPilotAI**! This is not just another Git tool; it's your AI-power
 Just run GitPilotAI in your Git repository:
 
 ```bash
-GitPilotAI generate
+gitpilotai generate
 ```
 
 This will:

@@ -37,7 +37,7 @@ type GPTChoice struct {
 
 func main() {
 	// Initialize Cobra
-	var rootCmd = &cobra.Command{Use: "diffgen"}
+	var rootCmd = &cobra.Command{Use: "gitpilotai"}
 	rootCmd.AddCommand(generateCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
