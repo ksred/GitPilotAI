@@ -1,4 +1,4 @@
-# RGitPilotAI 🚀
+# GitPilotAI 🚀
 
 Welcome to **GitPilotAI**! This is not just another Git tool; it's your AI-powered assistant for handling Git operations with a sprinkle of fun and efficiency. 🤖✨
 
