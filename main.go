@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"log"
 	"net/http"
 	"os"
@@ -12,26 +14,6 @@ import (
 )
 
 const ApiModel = "gpt-3.5-turbo"
-
-/*
-curl https://api.openai.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -d '{
-  "model": "gpt-3.5-turbo",
-  "messages": [
-    {
-      "role": "user",
-      "content": ""
-    }
-  ],
-  "temperature": 1,
-  "max_tokens": 256,
-  "top_p": 1,
-  "frequency_penalty": 0,
-  "presence_penalty": 0
-}'
-*/
 
 type GPTRequest struct {
 	Messages  []GPTMessage `json:"messages"`
@@ -44,20 +26,6 @@ type GPTMessage struct {
 	Content string `json:"content"`
 }
 
-/*
-"choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "Productivity is achieved when actions lead a company towards its goal, while actions that do not help achieve the goal are not productive."
-      },
-      "logprobs": null,
-      "finish_reason": "stop"
-    }
-  ],
-*/
-
 type GPTResponse struct {
 	Choices []GPTChoice `json:"choices"`
 	Error   interface{} `json:"error"`
@@ -68,86 +36,108 @@ type GPTChoice struct {
 }
 
 func main() {
-	fmt.Println("Diff Generator running...")
-	// Check environment variables loaded
-	if os.Getenv("OPENAI_API_KEY") == "" {
-		// Give instructions on how to set environment variables
-		fmt.Printf("Please set the OPENAI_API_KEY environment variable by running 'export OPEN_API_KEY=sk...\n")
+	// Initialize Cobra
+	var rootCmd = &cobra.Command{Use: "diffgen"}
+	rootCmd.AddCommand(generateCmd)
+	cobra.OnInitialize(initConfig)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func initConfig() {
+	viper.AutomaticEnv()
+	if viper.GetString("OPENAI_API_KEY") == "" {
 		log.Fatal("OPENAI_API_KEY environment variable not set")
 	}
+}
 
-	// First ask if the user wants to add all files or if they have already added them
-	fmt.Printf("Have you already added all files? (y/n): ")
-	var answer string
-	_, err := fmt.Scanln(&answer)
+var generateCmd = &cobra.Command{
+	Use:   "generate",
+	Short: "Generate commit messages based on git diff",
+	Run: func(cmd *cobra.Command, args []string) {
+		if !hasGitChanges() {
+			fmt.Println("No changes detected in the Git repository.")
+			return
+		}
+
+		diff := getGitDiff()
+		if diff == "" {
+			fmt.Println("No diff found.")
+			return
+		}
+
+		commitMessage, err := GenerateDiff(diff)
+		if err != nil {
+			log.Fatalf("Error generating commit message: %v", err)
+		}
+
+		fmt.Printf("Generated commit message: %s\n", commitMessage)
+
+		if err := commitChanges(commitMessage); err != nil {
+			log.Fatalf("Error committing changes: %v", err)
+		}
+
+		if err := pushChanges(); err != nil {
+			log.Fatalf("Error pushing changes: %v", err)
+		}
+	},
+}
+
+func hasGitChanges() bool {
+	out, err := exec.Command("git", "status", "--porcelain").Output()
 	if err != nil {
-		return
+		log.Fatalf("Error checking git status: %v", err)
 	}
-	if answer == "n" {
-		// Add all files
-		out, _ := exec.Command("git", "add", ".").Output()
-		fmt.Printf("Added all files: %s\n", out)
-	}
+	return len(out) > 0
+}
 
-	// Check if there are any changes in git status
-	out, _ := exec.Command("git", "status").Output()
-	status := string(out)
-	fmt.Printf("Git status: %s\n", status)
-	// If no changes, exit. Check if the string contains "nothing to commit, working tree clean\n"
-	if strings.Contains(status, "nothing to commit, working tree clean") {
-		fmt.Printf("No changes detected\n")
-		return
-	}
-
-	// Get diff of changes
-	out, _ = exec.Command("git", "diff", "--staged").Output()
-	diff := string(out)
-	fmt.Printf("Diff: %s\n", diff)
-	// Strip all white space to save on tokens
-	diff = strings.ReplaceAll(diff, " ", "")
-
-	if diff == "" {
-		fmt.Printf("No changes detected\n")
-		return
-	}
-
-	// Generate commit message
-	commitMessage, err := GenerateDiff(diff)
+func getGitDiff() string {
+	stagedDiffCmd := exec.Command("git", "diff", "--staged")
+	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
-		log.Fatalf("error generating commit message: %v", err)
+		log.Printf("Error getting staged git diff: %v", err)
 	}
 
-	fmt.Printf("Commit message: %s\n", commitMessage)
+	unstagedDiffCmd := exec.Command("git", "diff")
+	unstagedDiff, err := unstagedDiffCmd.Output()
+	if err != nil {
+		log.Printf("Error getting unstaged git diff: %v", err)
+	}
 
-	//Commit changes
-	out, _ = exec.Command("git", "commit", "-m", commitMessage).Output()
-	fmt.Printf("Changes committed: %s\n", out)
-
-	// Push changes
-	out, _ = exec.Command("git", "push").Output()
-	fmt.Printf("Changes pushed: %s\n", out)
+	totalDiff := strings.TrimSpace(string(stagedDiff)) + "\n" + strings.TrimSpace(string(unstagedDiff))
+	return totalDiff
 }
 
 func GenerateDiff(diff string) (string, error) {
-	// Build prompt with diff as context
 	prompt := fmt.Sprintf("Generate a git commit message based on this diff:\n\n%s\n\nCommit message:", diff)
 
 	requestBody, err := json.Marshal(GPTRequest{
 		Model:     ApiModel,
 		Messages:  []GPTMessage{{Role: "user", Content: prompt}},
-		MaxTokens: 200, // Adjust based on your needs
+		MaxTokens: 200,
 	})
 	if err != nil {
 		return "", fmt.Errorf("error marshaling request body: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(requestBody))
+	commitMessage, err := makeOpenAIRequest(requestBody)
+	if err != nil {
+		return "", err
+	}
+
+	return commitMessage, nil
+}
+
+func makeOpenAIRequest(body []byte) (string, error) {
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(body))
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+os.Getenv("OPENAI_API_KEY"))
+	req.Header.Set("Authorization", "Bearer "+viper.GetString("OPENAI_API_KEY"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -161,8 +151,6 @@ func GenerateDiff(diff string) (string, error) {
 		return "", fmt.Errorf("error decoding API response: %v", err)
 	}
 
-	fmt.Printf("API Response: %v\n", apiResp)
-
 	if apiResp.Error != nil {
 		return "", fmt.Errorf("error from API: %s", apiResp.Error)
 	}
@@ -171,5 +159,23 @@ func GenerateDiff(diff string) (string, error) {
 		return apiResp.Choices[0].Message.Content, nil
 	}
 
-	return "", nil
+	return "", fmt.Errorf("no response from API")
+}
+
+func commitChanges(commitMessage string) error {
+	cmd := exec.Command("git", "commit", "-m", commitMessage)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git commit failed: %s, %v", out, err)
+	}
+	fmt.Println("Changes committed successfully.")
+	return nil
+}
+
+func pushChanges() error {
+	cmd := exec.Command("git", "push")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git push failed: %s, %v", out, err)
+	}
+	fmt.Println("Changes pushed successfully.")
+	return nil
 }
