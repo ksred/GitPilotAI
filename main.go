@@ -62,6 +62,10 @@ var generateCmd = &cobra.Command{
 			return
 		}
 
+		if err := stageFiles(); err != nil {
+			log.Fatalf("Error staging files: %v", err)
+		}
+
 		diff := getGitDiff()
 		if diff == "" {
 			fmt.Println("No diff found.")
@@ -177,5 +181,17 @@ func pushChanges() error {
 		return fmt.Errorf("git push failed: %s, %v", out, err)
 	}
 	fmt.Println("Changes pushed successfully.")
+	return nil
+}
+
+func stageFiles() error {
+	// Using "git add ." to add all changes
+	cmd := exec.Command("git", "add", ".")
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("error staging files: %s, %v", out, err)
+	}
+
+	fmt.Println("Files staged successfully.")
 	return nil
 }
