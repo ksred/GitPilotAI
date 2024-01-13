@@ -117,7 +117,7 @@ func getGitDiff() string {
 }
 
 func GenerateDiff(diff string) (string, error) {
-	prompt := fmt.Sprintf("Generate a git commit message based on the output of a diff command. The commit message should be detailed.\n\nHere is the diff output:\n\n%s\n\nCommit message:", diff)
+	prompt := fmt.Sprintf("Generate a git commit message based on the output of a diff command. The commit message should be a detailed but brief overview of the changes.\n\nHere is the diff output:\n\n%s\n\nCommit message:", diff)
 
 	requestBody, err := json.Marshal(GPTRequest{
 		Model:     ApiModel,
