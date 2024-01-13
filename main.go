@@ -103,6 +103,8 @@ func main() {
 	out, _ = exec.Command("git", "diff", "--staged").Output()
 	diff := string(out)
 	fmt.Printf("Diff: %s\n", diff)
+	// Strip all white space to save on tokens
+	diff = strings.ReplaceAll(diff, " ", "")
 
 	if diff == "" {
 		fmt.Printf("No changes detected\n")
