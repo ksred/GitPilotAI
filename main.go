@@ -133,6 +133,9 @@ func GenerateDiff(diff string) (string, error) {
 		return "", err
 	}
 
+	// Strip commitMessage of any quotes
+	commitMessage = strings.ReplaceAll(commitMessage, "\"", "")
+
 	return commitMessage, nil
 }
 
