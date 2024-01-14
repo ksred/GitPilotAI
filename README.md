@@ -70,6 +70,46 @@ Welcome to **GitPilotAI**! This is not just another Git tool; it's your AI-power
 
 4. Add the directory to your system PATH, or move the `.exe` file to a directory already in your PATH.
 
+## Building and Installing with Makefile 🛠️
+
+GitPilotAI includes a Makefile for easy building and installation. This tool automates the compilation and installation process with just a few commands.
+
+### Prerequisites for Using Makefile
+
+- Ensure you have `make` installed on your system. Most Unix-like systems, including Linux and macOS, come with `make` pre-installed.
+- You should have Go installed and properly set up to compile the source code.
+
+### How to Use the Makefile
+
+1. **Build the Binary**:
+   - To compile the source code into a binary, simply run:
+     ```sh
+     make
+     ```
+   - This command executes the default target in the Makefile, which builds the `gitpilotai` binary.
+
+2. **Install the Binary**:
+   - To install the binary to your system (specifically to `/usr/bin/`), run:
+     ```sh
+     sudo make install
+     ```
+   - This command requires sudo privileges as it writes to a system directory.
+
+### What Does the Makefile Do?
+
+- **Build Target**: The `build` target compiles the Go source code and generates an executable named `gitpilotai`.
+- **Install Target**: The `install` target moves the `gitpilotai` binary to `/usr/bin/`, making it accessible system-wide.
+
+### Customization
+
+- If you wish to change the installation path or modify the build process, you can edit the Makefile according to your needs.
+
+---
+
+### Note
+
+- The Makefile is designed for Unix-like systems. If you're using Windows, you'll need a different method for building and installing the application.
+
 ### Usage
 
 Just run GitPilotAI in your Git repository:
