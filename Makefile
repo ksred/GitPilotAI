@@ -4,7 +4,7 @@
 BIN := gitpilotai
 
 # Where to push the binary to, for install.
-INSTALL_PATH := /usr/bin/
+INSTALL_PATH := /usr/local/bin/
 
 # Default target
 all: build
@@ -15,7 +15,7 @@ build:
 	@go build -o $(BIN)
 
 # This will install the binary to INSTALL_PATH.
-install: build
+install:
 	@echo "Installing $(BIN) to $(INSTALL_PATH)"
 	@mv $(BIN) $(INSTALL_PATH)
 
