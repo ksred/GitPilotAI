@@ -13,9 +13,7 @@ import (
 	"strings"
 )
 
-//const ApiModel = "gpt-3.5-turbo"
-
-const ApiModel = "gpt-4"
+const ApiModel = "gpt-4-1106-preview" // 128k context window
 
 type GPTRequest struct {
 	Messages  []GPTMessage `json:"messages"`
