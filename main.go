@@ -120,7 +120,7 @@ func GenerateDiff(diff string) (string, error) {
 	requestBody, err := json.Marshal(GPTRequest{
 		Model:     ApiModel,
 		Messages:  []GPTMessage{{Role: "user", Content: prompt}},
-		MaxTokens: 200,
+		MaxTokens: 1000,
 	})
 	if err != nil {
 		return "", fmt.Errorf("error marshaling request body: %v", err)
