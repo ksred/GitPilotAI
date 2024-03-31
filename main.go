@@ -206,3 +206,12 @@ func stageFiles() error {
 	fmt.Println("Files staged successfully.")
 	return nil
 }
+
+func detectCurrentBranch() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error detecting current branch: %v", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
