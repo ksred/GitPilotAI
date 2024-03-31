@@ -93,7 +93,14 @@ var branchCmd = &cobra.Command{
 	Use:   "branch",
 	Short: "Generate a new branch and commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
-		// IMPLEMENT ME
+		currentBranch, err := detectCurrentBranch()
+		if err != nil {
+			log.Fatalf("Error detecting current branch: %v", err)
+		}
+		if currentBranch != "main" && currentBranch != "master" {
+			log.Fatalf("You must be on the main branch to create a new branch.")
+		}
+
 	},
 }
 
