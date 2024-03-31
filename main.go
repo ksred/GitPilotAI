@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const ApiModel = "gpt-4-1106-preview" // 128k context window
+const ApiModel = "gpt-4-turbo-preview" // 128k context window
 
 type GPTRequest struct {
 	Messages  []GPTMessage `json:"messages"`
@@ -86,6 +86,14 @@ var generateCmd = &cobra.Command{
 		if err := pushChanges(); err != nil {
 			log.Fatalf("Error pushing changes: %v", err)
 		}
+	},
+}
+
+var branchCmd = &cobra.Command{
+	Use:   "branch",
+	Short: "Generate a new branch and commit messages based on git diff",
+	Run: func(cmd *cobra.Command, args []string) {
+		// IMPLEMENT ME
 	},
 }
 
