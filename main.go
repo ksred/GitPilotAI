@@ -222,3 +222,9 @@ func detectCurrentBranch() (string, error) {
 	}
 	return strings.TrimSpace(string(out)), nil
 }
+
+func generateBranchNameFromCommitMessage(commitMessage string) string {
+	prompt := fmt.Sprintf("Generate a branch name from a commit message. The branch name should be in a valid format, e.g. branch-name-of-feature. Here is the commit message:%s", commitMessage)
+	// TODO implement branch name generation
+	return prompt
+}
