@@ -93,7 +93,14 @@ var branchCmd = &cobra.Command{
 	Use:   "branch",
 	Short: "Generate a new branch and commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
-		// IMPLEMENT ME
+		currentBranch, err := detectCurrentBranch()
+		if err != nil {
+			log.Fatalf("Error detecting current branch: %v", err)
+		}
+		if currentBranch != "main" && currentBranch != "master" {
+			log.Fatalf("You must be on the main branch to create a new branch.")
+		}
+
 	},
 }
 
@@ -205,4 +212,19 @@ func stageFiles() error {
 
 	fmt.Println("Files staged successfully.")
 	return nil
+}
+
+func detectCurrentBranch() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error detecting current branch: %v", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func generateBranchNameFromCommitMessage(commitMessage string) string {
+	prompt := fmt.Sprintf("Generate a branch name from a commit message. The branch name should be in a valid format, e.g. branch-name-of-feature. Here is the commit message:%s", commitMessage)
+	// TODO implement branch name generation
+	return prompt
 }
