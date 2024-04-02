@@ -100,7 +100,31 @@ var branchCmd = &cobra.Command{
 		if currentBranch != "main" && currentBranch != "master" {
 			log.Fatalf("You must be on the main branch to create a new branch.")
 		}
+		// Add files
+		if !hasGitChanges() {
+			fmt.Println("No changes detected in the Git repository.")
+			return
+		}
 
+		if err := stageFiles(); err != nil {
+			log.Fatalf("Error staging files: %v", err)
+		}
+
+		diff := getGitDiff()
+		if diff == "" {
+			fmt.Println("No diff found.")
+			return
+		}
+		// Generate commit message
+		commitMessage, err := GenerateDiff(diff)
+		if err != nil {
+			log.Fatalf("Error generating commit message: %v", err)
+		}
+		// Create branch
+		branchName := generateBranchNameFromCommitMessage(commitMessage)
+		fmt.Printf("Generated branch name: %s\n", branchName)
+		// Switch to new branch
+		// Commit changes
 	},
 }
 
