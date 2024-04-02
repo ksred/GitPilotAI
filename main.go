@@ -131,17 +131,7 @@ func getGitDiff() string {
 
 func GenerateDiff(diff string) (string, error) {
 	prompt := fmt.Sprintf("Generate a git commit message based on the output of a diff command. The commit message should be a detailed but brief overview of the changes. Return only the text for the commit message. \n\nHere is the diff output:\n\n%s\n\nCommit message:", diff)
-
-	requestBody, err := json.Marshal(GPTRequest{
-		Model:     ApiModel,
-		Messages:  []GPTMessage{{Role: "user", Content: prompt}},
-		MaxTokens: 1000,
-	})
-	if err != nil {
-		return "", fmt.Errorf("error marshaling request body: %v", err)
-	}
-
-	commitMessage, err := makeOpenAIRequest(requestBody)
+	commitMessage, err := makeOpenAPIRequestFromPrompt(prompt)
 	if err != nil {
 		return "", err
 	}
@@ -225,6 +215,27 @@ func detectCurrentBranch() (string, error) {
 
 func generateBranchNameFromCommitMessage(commitMessage string) string {
 	prompt := fmt.Sprintf("Generate a branch name from a commit message. The branch name should be in a valid format, e.g. branch-name-of-feature. Here is the commit message:%s", commitMessage)
-	// TODO implement branch name generation
-	return prompt
+	branch, err := makeOpenAPIRequestFromPrompt(prompt)
+	if err != nil {
+		log.Fatalf("Error generating branch name: %v", err)
+	}
+	return branch
+}
+
+func makeOpenAPIRequestFromPrompt(prompt string) (string, error) {
+	requestBody, err := json.Marshal(GPTRequest{
+		Model:     ApiModel,
+		Messages:  []GPTMessage{{Role: "user", Content: prompt}},
+		MaxTokens: 1000,
+	})
+	if err != nil {
+		return "", fmt.Errorf("error marshaling request body: %v", err)
+	}
+
+	response, err := makeOpenAIRequest(requestBody)
+	if err != nil {
+		return "", err
+	}
+
+	return response, nil
 }
