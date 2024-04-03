@@ -83,7 +83,12 @@ var generateCmd = &cobra.Command{
 			log.Fatalf("Error committing changes: %v", err)
 		}
 
-		if err := pushChanges(); err != nil {
+		currentBranch, err := detectCurrentBranch()
+		if err != nil {
+			log.Fatalf("Error detecting current branch: %v", err)
+		}
+
+		if err := pushChanges(currentBranch); err != nil {
 			log.Fatalf("Error pushing changes: %v", err)
 		}
 	},
@@ -132,7 +137,7 @@ var branchCmd = &cobra.Command{
 			log.Fatalf("Error committing changes: %v", err)
 		}
 
-		if err := pushChanges(); err != nil {
+		if err := pushChanges(branchName); err != nil {
 			log.Fatalf("Error pushing changes: %v", err)
 		}
 	},
@@ -217,13 +222,28 @@ func commitChanges(commitMessage string) error {
 	return nil
 }
 
-func pushChanges() error {
-	// TODO Need to add a check here to get this done git push --set-upstream origin add-branch-functionality-to-cli
-	cmd := exec.Command("git", "push")
+func pushChanges(branchName string) error {
+	// Check if the branch exists locally
+	cmd := exec.Command("git", "rev-parse", "--verify", branchName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("branch %s does not exist locally", branchName)
+	}
+
+	// Check if the branch exists remotely
+	cmd = exec.Command("git", "ls-remote", "--exit-code", "--heads", "origin", branchName)
+	if err := cmd.Run(); err == nil {
+		// Branch exists remotely, perform a normal push
+		cmd = exec.Command("git", "push", "origin", branchName)
+	} else {
+		// Branch does not exist remotely, set the upstream and push
+		cmd = exec.Command("git", "push", "--set-upstream", "origin", branchName)
+	}
+
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git push failed: %s, %v", out, err)
 	}
-	fmt.Println("Changes pushed successfully.")
+
+	fmt.Printf("Changes pushed successfully to branch %s.\n", branchName)
 	return nil
 }
 
