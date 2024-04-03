@@ -122,9 +122,19 @@ var branchCmd = &cobra.Command{
 		}
 		// Create branch
 		branchName := generateBranchNameFromCommitMessage(commitMessage)
-		fmt.Printf("Generated branch name: %s\n", branchName)
 		// Switch to new branch
+		err = checkoutNewBranchLocally(branchName)
+		if err != nil {
+			log.Fatalf("Error checking out new branch: %v", err)
+		}
 		// Commit changes
+		if err := commitChanges(commitMessage); err != nil {
+			log.Fatalf("Error committing changes: %v", err)
+		}
+
+		if err := pushChanges(); err != nil {
+			log.Fatalf("Error pushing changes: %v", err)
+		}
 	},
 }
 
@@ -208,6 +218,7 @@ func commitChanges(commitMessage string) error {
 }
 
 func pushChanges() error {
+	// TODO Need to add a check here to get this done git push --set-upstream origin add-branch-functionality-to-cli
 	cmd := exec.Command("git", "push")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git push failed: %s, %v", out, err)
@@ -262,4 +273,13 @@ func makeOpenAPIRequestFromPrompt(prompt string) (string, error) {
 	}
 
 	return response, nil
+}
+
+func checkoutNewBranchLocally(branchName string) error {
+	cmd := exec.Command("git", "checkout", "-b", branchName)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("error checking out new branch: %s, %v", out, err)
+	}
+	fmt.Printf("Switched to new branch %s\n", branchName)
+	return nil
 }
