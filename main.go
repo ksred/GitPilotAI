@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,9 +39,10 @@ func main() {
 	// Initialize Cobra
 	var rootCmd = &cobra.Command{Use: "gitpilotai"}
 	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(branchCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		color.Red("%v", err)
 		os.Exit(1)
 	}
 }
@@ -49,7 +50,8 @@ func main() {
 func initConfig() {
 	viper.AutomaticEnv()
 	if viper.GetString("OPENAI_API_KEY") == "" {
-		log.Fatal("OPENAI_API_KEY environment variable not set")
+		color.Red("OPENAI_API_KEY environment variable not set")
+		return
 	}
 }
 
@@ -58,38 +60,43 @@ var generateCmd = &cobra.Command{
 	Short: "Generate commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
 		if !hasGitChanges() {
-			fmt.Println("No changes detected in the Git repository.")
+			color.Yellow("Please make some changes to the repository and try again.")
 			return
 		}
 
 		if err := stageFiles(); err != nil {
-			log.Fatalf("Error staging files: %v", err)
+			color.Red("Error staging files: %v", err)
+			return
 		}
 
 		diff := getGitDiff()
 		if diff == "" {
-			fmt.Println("No diff found.")
+			color.Yellow("No diff found.")
 			return
 		}
 
 		commitMessage, err := GenerateDiff(diff)
 		if err != nil {
-			log.Fatalf("Error generating commit message: %v", err)
+			color.Red("Error generating commit message: %v", err)
+			return
 		}
 
-		fmt.Printf("Generated commit message: %s\n", commitMessage)
+		color.Green("Generated commit message: %s\n", commitMessage)
 
 		if err := commitChanges(commitMessage); err != nil {
-			log.Fatalf("Error committing changes: %v", err)
+			color.Red("Error committing changes: %v", err)
+			return
 		}
 
 		currentBranch, err := detectCurrentBranch()
 		if err != nil {
-			log.Fatalf("Error detecting current branch: %v", err)
+			color.Red("Error detecting current branch: %v", err)
+			return
 		}
 
 		if err := pushChanges(currentBranch); err != nil {
-			log.Fatalf("Error pushing changes: %v", err)
+			color.Red("Error pushing changes: %v", err)
+			return
 		}
 	},
 }
@@ -100,45 +107,52 @@ var branchCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		currentBranch, err := detectCurrentBranch()
 		if err != nil {
-			log.Fatalf("Error detecting current branch: %v", err)
+			color.Red("Error detecting current branch: %v", err)
+			return
 		}
 		if currentBranch != "main" && currentBranch != "master" {
-			log.Fatalf("You must be on the main branch to create a new branch.")
+			color.Red("You must be on the main branch to create a new branch.")
+			return
 		}
 		// Add files
 		if !hasGitChanges() {
-			fmt.Println("No changes detected in the Git repository.")
+			color.Yellow("No changes detected in the Git repository.")
 			return
 		}
 
 		if err := stageFiles(); err != nil {
-			log.Fatalf("Error staging files: %v", err)
+			color.Red("Error staging files: %v", err)
+			return
 		}
 
 		diff := getGitDiff()
 		if diff == "" {
-			fmt.Println("No diff found.")
+			color.Yellow("No diff found.")
 			return
 		}
 		// Generate commit message
 		commitMessage, err := GenerateDiff(diff)
 		if err != nil {
-			log.Fatalf("Error generating commit message: %v", err)
+			color.Red("Error generating commit message: %v", err)
+			return
 		}
 		// Create branch
 		branchName := generateBranchNameFromCommitMessage(commitMessage)
 		// Switch to new branch
 		err = checkoutNewBranchLocally(branchName)
 		if err != nil {
-			log.Fatalf("Error checking out new branch: %v", err)
+			color.Red("Error checking out new branch: %v", err)
+			return
 		}
 		// Commit changes
 		if err := commitChanges(commitMessage); err != nil {
-			log.Fatalf("Error committing changes: %v", err)
+			color.Red("Error committing changes: %v", err)
+			return
 		}
 
 		if err := pushChanges(branchName); err != nil {
-			log.Fatalf("Error pushing changes: %v", err)
+			color.Red("Error pushing changes: %v", err)
+			return
 		}
 	},
 }
@@ -146,7 +160,8 @@ var branchCmd = &cobra.Command{
 func hasGitChanges() bool {
 	out, err := exec.Command("git", "status", "--porcelain").Output()
 	if err != nil {
-		log.Fatalf("Error checking git status: %v", err)
+		color.Red("Error checking git status: %v", err)
+		return false
 	}
 	return len(out) > 0
 }
@@ -155,13 +170,15 @@ func getGitDiff() string {
 	stagedDiffCmd := exec.Command("git", "diff", "--staged")
 	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
-		log.Printf("Error getting staged git diff: %v", err)
+		color.Red("Error getting staged git diff: %v", err)
+		return ""
 	}
 
 	unstagedDiffCmd := exec.Command("git", "diff")
 	unstagedDiff, err := unstagedDiffCmd.Output()
 	if err != nil {
-		log.Printf("Error getting unstaged git diff: %v", err)
+		color.Red("Error getting unstaged git diff: %v", err)
+		return ""
 	}
 
 	totalDiff := strings.TrimSpace(string(stagedDiff)) + "\n" + strings.TrimSpace(string(unstagedDiff))
@@ -218,7 +235,7 @@ func commitChanges(commitMessage string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git commit failed: %s, %v", out, err)
 	}
-	fmt.Println("Changes committed successfully.")
+	color.Green("Commit message: %s\n", commitMessage)
 	return nil
 }
 
@@ -243,7 +260,7 @@ func pushChanges(branchName string) error {
 		return fmt.Errorf("git push failed: %s, %v", out, err)
 	}
 
-	fmt.Printf("Changes pushed successfully to branch %s.\n", branchName)
+	color.Green("Changes pushed successfully to branch %s.\n", branchName)
 	return nil
 }
 
@@ -255,7 +272,7 @@ func stageFiles() error {
 		return fmt.Errorf("error staging files: %s, %v", out, err)
 	}
 
-	fmt.Println("Files staged successfully.")
+	color.Green("Files staged successfully.")
 	return nil
 }
 
@@ -272,7 +289,8 @@ func generateBranchNameFromCommitMessage(commitMessage string) string {
 	prompt := fmt.Sprintf("Generate a branch name from a commit message. The branch name should be in a valid format, e.g. branch-name-of-feature. Here is the commit message:%s", commitMessage)
 	branch, err := makeOpenAPIRequestFromPrompt(prompt)
 	if err != nil {
-		log.Fatalf("Error generating branch name: %v", err)
+		color.Red("Error generating branch name: %v", err)
+		return ""
 	}
 	return branch
 }
@@ -300,6 +318,6 @@ func checkoutNewBranchLocally(branchName string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("error checking out new branch: %s, %v", out, err)
 	}
-	fmt.Printf("Switched to new branch %s\n", branchName)
+	color.Green("Switched to new branch %s\n", branchName)
 	return nil
 }
