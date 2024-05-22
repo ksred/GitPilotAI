@@ -15,7 +15,7 @@ build:
 	@go build -o $(BIN)
 
 # This will install the binary to INSTALL_PATH.
-install:
+install: build
 	@echo "Installing $(BIN) to $(INSTALL_PATH)"
 	@mv $(BIN) $(INSTALL_PATH)
 
