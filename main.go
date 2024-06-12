@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -42,7 +42,7 @@ func main() {
 	rootCmd.AddCommand(generateCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		color.Red(err.Error())
 		os.Exit(1)
 	}
 }
@@ -57,7 +57,8 @@ func initConfig() {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("Error finding home directory: %v", err)
+		color.Red("Error finding home directory: %v", err)
+		os.Exit(1)
 	}
 	envFilePath := homeDir + "/.gitpilotai.env"
 
@@ -71,24 +72,29 @@ func initConfig() {
 			// Environment variable not set, create or open the config file and write the variable
 			envFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
-				log.Fatalf("Error opening or creating .gitpilotai.env file: %v", err)
+				color.Red("Error opening or creating .gitpilotai.env file: %v", err)
+				os.Exit(1)
 			}
 			defer envFile.Close()
 
 			if _, err := envFile.WriteString("OPENAI_API_KEY=\n"); err != nil {
-				log.Fatalf("Error writing to .gitpilotai.env file: %v", err)
+				color.Red("Error writing to .gitpilotai.env file: %v", err)
+				os.Exit(1)
 			}
-			log.Fatal("OPENAI_API_KEY environment variable not set and was added to .gitpilotai.env. Please set it.")
+			color.Red("OPENAI_API_KEY environment variable not set and was added to .gitpilotai.env. Please set it.")
+			os.Exit(1)
 		} else {
 			// Environment variable is set but config file does not exist, write it to the file
 			configFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
-				log.Fatalf("Error opening or creating .gitpilotai.env file: %v", err)
+				color.Red("Error opening or creating .gitpilotai.env file: %v", err)
+				os.Exit(1)
 			}
 			defer configFile.Close()
 
 			if _, err := configFile.WriteString("OPENAI_API_KEY=" + envVar + "\n"); err != nil {
-				log.Fatalf("Error writing to .gitpilotai.env file: %v", err)
+				color.Red("Error writing to .gitpilotai.env file: %v", err)
+				os.Exit(1)
 			}
 		}
 	} else {
@@ -99,7 +105,7 @@ func initConfig() {
 		}
 	}
 
-	fmt.Println("Config initialized.")
+	color.Green("Config initialized.")
 }
 
 var generateCmd = &cobra.Command{
@@ -107,38 +113,43 @@ var generateCmd = &cobra.Command{
 	Short: "Generate commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
 		if !hasGitChanges() {
-			fmt.Println("No changes detected in the Git repository.")
+			color.Yellow("No changes detected in the Git repository.")
 			return
 		}
 
 		if err := stageFiles(); err != nil {
-			log.Fatalf("Error staging files: %v", err)
+			color.Red("Error staging files: %v", err)
+			os.Exit(1)
 		}
 
 		diff := getGitDiff()
 		if diff == "" {
-			fmt.Println("No diff found.")
+			color.Yellow("No diff found.")
 			return
 		}
 
 		commitMessage, err := GenerateDiff(diff)
 		if err != nil {
-			log.Fatalf("Error generating commit message: %v", err)
+			color.Red("Error generating commit message: %v", err)
+			os.Exit(1)
 		}
 
-		fmt.Printf("Generated commit message: %s\n", commitMessage)
+		color.Cyan("Generated commit message: %s\n", commitMessage)
 
 		if err := commitChanges(commitMessage); err != nil {
-			log.Fatalf("Error committing changes: %v", err)
+			color.Red("Error committing changes: %v", err)
+			os.Exit(1)
 		}
 
 		currentBranch, err := detectCurrentBranch()
 		if err != nil {
-			log.Fatalf("Error detecting current branch: %v", err)
+			color.Red("Error detecting current branch: %v", err)
+			os.Exit(1)
 		}
 
 		if err := pushChanges(currentBranch); err != nil {
-			log.Fatalf("Error pushing changes: %v", err)
+			color.Red("Error pushing changes: %v", err)
+			os.Exit(1)
 		}
 	},
 }
@@ -149,45 +160,52 @@ var branchCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		currentBranch, err := detectCurrentBranch()
 		if err != nil {
-			log.Fatalf("Error detecting current branch: %v", err)
+			color.Red("Error detecting current branch: %v", err)
+			os.Exit(1)
 		}
 		if currentBranch != "main" && currentBranch != "master" {
-			log.Fatalf("You must be on the main branch to create a new branch.")
+			color.Red("You must be on the main branch to create a new branch.")
+			os.Exit(1)
 		}
 		// Add files
 		if !hasGitChanges() {
-			fmt.Println("No changes detected in the Git repository.")
+			color.Yellow("No changes detected in the Git repository.")
 			return
 		}
 
 		if err := stageFiles(); err != nil {
-			log.Fatalf("Error staging files: %v", err)
+			color.Red("Error staging files: %v", err)
+			os.Exit(1)
 		}
 
 		diff := getGitDiff()
 		if diff == "" {
-			fmt.Println("No diff found.")
+			color.Yellow("No diff found.")
 			return
 		}
 		// Generate commit message
 		commitMessage, err := GenerateDiff(diff)
 		if err != nil {
-			log.Fatalf("Error generating commit message: %v", err)
+			color.Red("Error generating commit message: %v", err)
+			os.Exit(1)
 		}
 		// Create branch
 		branchName := generateBranchNameFromCommitMessage(commitMessage)
 		// Switch to new branch
 		err = checkoutNewBranchLocally(branchName)
 		if err != nil {
-			log.Fatalf("Error checking out new branch: %v", err)
+			color.Red("Error checking out new branch: %v", err)
+			os.Exit(1)
 		}
 		// Commit changes
 		if err := commitChanges(commitMessage); err != nil {
-			log.Fatalf("Error committing changes: %v", err)
+			color.Red("Error committing changes: %v", err)
+			os.Exit(1)
 		}
 
 		if err := pushChanges(branchName); err != nil {
-			log.Fatalf("Error pushing changes: %v", err)
+			color.Red("Error pushing changes: %v", err)
+			os.Exit(1)
 		}
 	},
 }
@@ -195,7 +213,8 @@ var branchCmd = &cobra.Command{
 func hasGitChanges() bool {
 	out, err := exec.Command("git", "status", "--porcelain").Output()
 	if err != nil {
-		log.Fatalf("Error checking git status: %v", err)
+		color.Red("Error checking git status: %v", err)
+		os.Exit(1)
 	}
 	return len(out) > 0
 }
@@ -204,13 +223,15 @@ func getGitDiff() string {
 	stagedDiffCmd := exec.Command("git", "diff", "--staged")
 	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
-		log.Printf("Error getting staged git diff: %v", err)
+		color.Red("Error getting staged git diff: %v", err)
+		os.Exit(1)
 	}
 
 	unstagedDiffCmd := exec.Command("git", "diff")
 	unstagedDiff, err := unstagedDiffCmd.Output()
 	if err != nil {
-		log.Printf("Error getting unstaged git diff: %v", err)
+		color.Red("Error getting unstaged git diff: %v", err)
+		os.Exit(1)
 	}
 
 	totalDiff := strings.TrimSpace(string(stagedDiff)) + "\n" + strings.TrimSpace(string(unstagedDiff))
@@ -221,7 +242,8 @@ func GenerateDiff(diff string) (string, error) {
 	prompt := fmt.Sprintf("Generate a git commit message based on the output of a diff command. The commit message should be a detailed but brief overview of the changes. Return only the text for the commit message. \n\nHere is the diff output:\n\n%s\n\nCommit message:", diff)
 	commitMessage, err := makeOpenAPIRequestFromPrompt(prompt)
 	if err != nil {
-		return "", err
+		color.Red("Error generating commit message: %v", err)
+		os.Exit(1)
 	}
 
 	// Strip commitMessage of any quotes
@@ -233,7 +255,8 @@ func GenerateDiff(diff string) (string, error) {
 func makeOpenAIRequest(body []byte) (string, error) {
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(body))
 	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
+		color.Red("Error creating request: %v", err)
+		os.Exit(1)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -242,32 +265,38 @@ func makeOpenAIRequest(body []byte) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("error sending request to OpenAI: %v", err)
+		color.Red("Error sending request to OpenAI: %v", err)
+		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
 	var apiResp GPTResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return "", fmt.Errorf("error decoding API response: %v", err)
+		color.Red("Error decoding API response: %v", err)
+		os.Exit(1)
 	}
 
 	if apiResp.Error != nil {
-		return "", fmt.Errorf("error from API: %s", apiResp.Error)
+		color.Red("Error from API: %s", apiResp.Error)
+		os.Exit(1)
 	}
 
 	if len(apiResp.Choices) > 0 {
 		return apiResp.Choices[0].Message.Content, nil
 	}
 
-	return "", fmt.Errorf("no response from API")
+	color.Red("No response from API")
+	os.Exit(1)
+	return "", nil
 }
 
 func commitChanges(commitMessage string) error {
 	cmd := exec.Command("git", "commit", "-m", commitMessage)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git commit failed: %s, %v", out, err)
+		color.Red("git commit failed: %s, %v", out, err)
+		os.Exit(1)
 	}
-	fmt.Println("Changes committed successfully.")
+	color.Green("Changes committed successfully.")
 	return nil
 }
 
@@ -275,7 +304,8 @@ func pushChanges(branchName string) error {
 	// Check if the branch exists locally
 	cmd := exec.Command("git", "rev-parse", "--verify", branchName)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("branch %s does not exist locally", branchName)
+		color.Red("branch %s does not exist locally", branchName)
+		os.Exit(1)
 	}
 
 	// Check if the branch exists remotely
@@ -289,10 +319,11 @@ func pushChanges(branchName string) error {
 	}
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git push failed: %s, %v", out, err)
+		color.Red("git push failed: %s, %v", out, err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("Changes pushed successfully to branch %s.\n", branchName)
+	color.Green("Changes pushed successfully to branch %s.\n", branchName)
 	return nil
 }
 
@@ -301,10 +332,11 @@ func stageFiles() error {
 	cmd := exec.Command("git", "add", ".")
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("error staging files: %s, %v", out, err)
+		color.Red("error staging files: %s, %v", out, err)
+		os.Exit(1)
 	}
 
-	fmt.Println("Files staged successfully.")
+	color.Green("Files staged successfully.")
 	return nil
 }
 
@@ -312,7 +344,8 @@ func detectCurrentBranch() (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("error detecting current branch: %v", err)
+		color.Red("error detecting current branch: %v", err)
+		os.Exit(1)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -321,7 +354,8 @@ func generateBranchNameFromCommitMessage(commitMessage string) string {
 	prompt := fmt.Sprintf("Generate a branch name from a commit message. The branch name should be in a valid format, e.g. branch-name-of-feature. Here is the commit message:%s", commitMessage)
 	branch, err := makeOpenAPIRequestFromPrompt(prompt)
 	if err != nil {
-		log.Fatalf("Error generating branch name: %v", err)
+		color.Red("Error generating branch name: %v", err)
+		os.Exit(1)
 	}
 	return branch
 }
@@ -333,12 +367,14 @@ func makeOpenAPIRequestFromPrompt(prompt string) (string, error) {
 		MaxTokens: 1000,
 	})
 	if err != nil {
-		return "", fmt.Errorf("error marshaling request body: %v", err)
+		color.Red("error marshaling request body: %v", err)
+		os.Exit(1)
 	}
 
 	response, err := makeOpenAIRequest(requestBody)
 	if err != nil {
-		return "", err
+		color.Red("Error generating branch name: %v", err)
+		os.Exit(1)
 	}
 
 	return response, nil
@@ -347,8 +383,9 @@ func makeOpenAPIRequestFromPrompt(prompt string) (string, error) {
 func checkoutNewBranchLocally(branchName string) error {
 	cmd := exec.Command("git", "checkout", "-b", branchName)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("error checking out new branch: %s, %v", out, err)
+		color.Red("error checking out new branch: %s, %v", out, err)
+		os.Exit(1)
 	}
-	fmt.Printf("Switched to new branch %s\n", branchName)
+	color.Green("Switched to new branch %s\n", branchName)
 	return nil
 }
