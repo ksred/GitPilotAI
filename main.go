@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 const ApiModel = "gpt-4o" // 128k context window
@@ -47,10 +48,58 @@ func main() {
 }
 
 func initConfig() {
-	viper.AutomaticEnv()
-	if viper.GetString("OPENAI_API_KEY") == "" {
-		log.Fatal("OPENAI_API_KEY environment variable not set")
+	viper.SetConfigType("env")
+	viper.SetConfigName(".gitpilotai")
+	viper.AddConfigPath("$HOME")
+
+	// Attempt to read the configuration file
+	err := viper.ReadInConfig()
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("Error finding home directory: %v", err)
 	}
+	envFilePath := homeDir + "/.gitpilotai.env"
+
+	// Check if the OPENAI_API_KEY environment variable is set
+	envVar := viper.GetString("OPENAI_API_KEY")
+
+	if err != nil { // Config file not found
+		viper.AutomaticEnv() // Enable reading of environment variables
+
+		if envVar == "" {
+			// Environment variable not set, create or open the config file and write the variable
+			envFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Fatalf("Error opening or creating .gitpilotai.env file: %v", err)
+			}
+			defer envFile.Close()
+
+			if _, err := envFile.WriteString("OPENAI_API_KEY=\n"); err != nil {
+				log.Fatalf("Error writing to .gitpilotai.env file: %v", err)
+			}
+			log.Fatal("OPENAI_API_KEY environment variable not set and was added to .gitpilotai.env. Please set it.")
+		} else {
+			// Environment variable is set but config file does not exist, write it to the file
+			configFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Fatalf("Error opening or creating .gitpilotai.env file: %v", err)
+			}
+			defer configFile.Close()
+
+			if _, err := configFile.WriteString("OPENAI_API_KEY=" + envVar + "\n"); err != nil {
+				log.Fatalf("Error writing to .gitpilotai.env file: %v", err)
+			}
+		}
+	} else {
+		// Config file exists, load the variable from the file
+		if envVar == "" {
+			// If the environment variable is still not set, load it from the file
+			viper.AutomaticEnv()
+		}
+	}
+
+	fmt.Println("Config initialized.")
 }
 
 var generateCmd = &cobra.Command{
