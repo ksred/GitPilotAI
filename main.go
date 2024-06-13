@@ -199,7 +199,7 @@ var generateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		color.Cyan("Generated commit message: %s\n", commitMessage)
+		color.Cyan("%s\n", commitMessage)
 
 		if err := commitChanges(commitMessage); err != nil {
 			color.Red("Error committing changes: %v", err)
