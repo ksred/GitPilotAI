@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -39,7 +40,9 @@ type GPTChoice struct {
 func main() {
 	// Initialize Cobra
 	var rootCmd = &cobra.Command{Use: "gitpilotai"}
+	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(branchCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
 		color.Red(err.Error())
@@ -53,7 +56,7 @@ func initConfig() {
 	viper.AddConfigPath("$HOME")
 
 	// Attempt to read the configuration file
-	err := viper.ReadInConfig()
+	configErr := viper.ReadInConfig()
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -62,12 +65,11 @@ func initConfig() {
 	}
 	envFilePath := homeDir + "/.gitpilotai.env"
 
+	viper.AutomaticEnv() // Enable reading of environment variables
 	// Check if the OPENAI_API_KEY environment variable is set
 	envVar := viper.GetString("OPENAI_API_KEY")
 
-	if err != nil { // Config file not found
-		viper.AutomaticEnv() // Enable reading of environment variables
-
+	if configErr != nil { // Config file not found
 		if envVar == "" {
 			// Environment variable not set, create or open the config file and write the variable
 			envFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -85,27 +87,90 @@ func initConfig() {
 			os.Exit(1)
 		} else {
 			// Environment variable is set but config file does not exist, write it to the file
-			configFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			envFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				color.Red("Error opening or creating .gitpilotai.env file: %v", err)
 				os.Exit(1)
 			}
-			defer configFile.Close()
+			defer envFile.Close()
 
-			if _, err := configFile.WriteString("OPENAI_API_KEY=" + envVar + "\n"); err != nil {
-				color.Red("Error writing to .gitpilotai.env file: %v", err)
-				os.Exit(1)
+			// Remove all contents from the file
+			if err := envFile.Truncate(0); err != nil {
+				color.Red("Error truncating .gitpilotai.env file: %v", err)
+				return
 			}
+			if _, err := envFile.Seek(0, 0); err != nil {
+				color.Red("Error seeking in .gitpilotai.env file: %v", err)
+				return
+			}
+
+			if _, err := envFile.WriteString("OPENAI_API_KEY=\n"); err != nil {
+				color.Red("Error writing to .gitpilotai.env file: %v", err)
+				return
+			}
+
+			viper.Set("OPENAI_API_KEY", envVar)
 		}
 	} else {
 		// Config file exists, load the variable from the file
 		if envVar == "" {
 			// If the environment variable is still not set, load it from the file
-			viper.AutomaticEnv()
+			envFile, err := os.Open(envFilePath)
+			if err != nil {
+				color.Red("Error opening .gitpilotai.env file: %v", err)
+				os.Exit(1)
+			}
+			defer envFile.Close()
+
+			scanner := bufio.NewScanner(envFile)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.HasPrefix(line, "OPENAI_API_KEY=") {
+					envVar = strings.TrimPrefix(line, "OPENAI_API_KEY=")
+					viper.Set("OPENAI_API_KEY", envVar)
+					break
+				}
+			}
+
+			if err := scanner.Err(); err != nil {
+				color.Red("Error reading .gitpilotai.env file: %v", err)
+				os.Exit(1)
+			}
+		} else {
+			envFile, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				color.Red("Error opening or creating .gitpilotai.env file: %v", err)
+				os.Exit(1)
+			}
+			defer envFile.Close()
+
+			// Remove all contents from the file
+			if err := envFile.Truncate(0); err != nil {
+				color.Red("Error truncating .gitpilotai.env file: %v", err)
+				return
+			}
+			if _, err := envFile.Seek(0, 0); err != nil {
+				color.Red("Error seeking in .gitpilotai.env file: %v", err)
+				return
+			}
+
+			_, err = envFile.WriteString("OPENAI_API_KEY=" + envVar + "\n")
+			if err != nil {
+				color.Red("Error writing to .gitpilotai.env file: %v", err)
+				os.Exit(1)
+			}
+
+			viper.Set("OPENAI_API_KEY", envVar)
 		}
 	}
+}
 
-	color.Green("Config initialized.")
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Configure the API key",
+	Run: func(cmd *cobra.Command, args []string) {
+		color.Green("Config initialized.")
+	},
 }
 
 var generateCmd = &cobra.Command{
