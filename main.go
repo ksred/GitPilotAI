@@ -37,6 +37,20 @@ type GPTChoice struct {
 	Message GPTMessage `json:"message"`
 }
 
+const CommitMessagePrompt = `
+Generate a git commit message based on the output of a diff command. 
+The commit message should be a detailed but brief overview of the changes. 
+Return only the text for the commit message. 
+
+Here is the diff output:
+%s
+`
+
+const AdditionalCommitMessagePrompt = `
+The following extra context has been added by the user. Take it into account when generating the commit message.
+%s
+`
+
 func main() {
 	// Initialize Cobra
 	var rootCmd = &cobra.Command{Use: "gitpilotai"}
@@ -177,6 +191,12 @@ var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
+		gitMessage := ""
+		if len(args) > 0 {
+			gitMessage = strings.Join(args, " ")
+			color.Blue("Received git message: %s", gitMessage)
+		}
+
 		if !hasGitChanges() {
 			color.Yellow("No changes detected in the Git repository.")
 			return
@@ -193,7 +213,7 @@ var generateCmd = &cobra.Command{
 			return
 		}
 
-		commitMessage, err := GenerateDiff(diff)
+		commitMessage, err := GenerateDiff(diff, gitMessage)
 		if err != nil {
 			color.Red("Error generating commit message: %v", err)
 			os.Exit(1)
@@ -232,6 +252,12 @@ var branchCmd = &cobra.Command{
 			color.Red("You must be on the main branch to create a new branch.")
 			os.Exit(1)
 		}
+		gitMessage := ""
+		if len(args) > 0 {
+			gitMessage = strings.Join(args, " ")
+			color.Blue("Received git message: %s", gitMessage)
+		}
+
 		// Add files
 		if !hasGitChanges() {
 			color.Yellow("No changes detected in the Git repository.")
@@ -249,7 +275,7 @@ var branchCmd = &cobra.Command{
 			return
 		}
 		// Generate commit message
-		commitMessage, err := GenerateDiff(diff)
+		commitMessage, err := GenerateDiff(diff, gitMessage)
 		if err != nil {
 			color.Red("Error generating commit message: %v", err)
 			os.Exit(1)
@@ -303,8 +329,11 @@ func getGitDiff() string {
 	return totalDiff
 }
 
-func GenerateDiff(diff string) (string, error) {
-	prompt := fmt.Sprintf("Generate a git commit message based on the output of a diff command. The commit message should be a detailed but brief overview of the changes. Return only the text for the commit message. \n\nHere is the diff output:\n\n%s\n\nCommit message:", diff)
+func GenerateDiff(diff string, gitMessage string) (string, error) {
+	prompt := fmt.Sprintf(CommitMessagePrompt, diff)
+	if gitMessage != "" {
+		prompt += fmt.Sprintf(AdditionalCommitMessagePrompt, gitMessage)
+	}
 	commitMessage, err := makeOpenAPIRequestFromPrompt(prompt)
 	if err != nil {
 		color.Red("Error generating commit message: %v", err)
