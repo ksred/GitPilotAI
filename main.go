@@ -51,12 +51,22 @@ The following extra context has been added by the user. Take it into account whe
 %s
 `
 
+const BranchNamePrompt = `
+Generate a branch name from a commit message. The branch name should be in a valid format, e.g. feat/branch-name-of-feature.
+It should be prefixed with "feat/", "fix/", "perf/", "docs/", "style/", "refactor/", "test/", "chore/" or "bug/".
+Here is the commit message:
+%s
+
+Only respond with the branch name, nothing else.
+`
+
 func main() {
 	// Initialize Cobra
 	var rootCmd = &cobra.Command{Use: "gitpilotai"}
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(branchCmd)
+	rootCmd.AddCommand(prCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
 		color.Red(err.Error())
@@ -301,6 +311,14 @@ var branchCmd = &cobra.Command{
 	},
 }
 
+var prCmd = &cobra.Command{
+	Use:   "pr",
+	Short: "Open a pull request",
+	Run: func(cmd *cobra.Command, args []string) {
+		openPullRequest(args[0])
+	},
+}
+
 func hasGitChanges() bool {
 	out, err := exec.Command("git", "status", "--porcelain").Output()
 	if err != nil {
@@ -445,7 +463,7 @@ func detectCurrentBranch() (string, error) {
 }
 
 func generateBranchNameFromCommitMessage(commitMessage string) string {
-	prompt := fmt.Sprintf("Generate a branch name from a commit message. The branch name should be in a valid format, e.g. branch-name-of-feature. Here is the commit message:%s", commitMessage)
+	prompt := fmt.Sprintf(BranchNamePrompt, commitMessage)
 	branch, err := makeOpenAPIRequestFromPrompt(prompt)
 	if err != nil {
 		color.Red("Error generating branch name: %v", err)
@@ -481,5 +499,25 @@ func checkoutNewBranchLocally(branchName string) error {
 		os.Exit(1)
 	}
 	color.Green("Switched to new branch %s\n", branchName)
+	return nil
+}
+
+func openPullRequest(branchName string) error {
+	repoURL, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
+	if err != nil {
+		color.Red("error retrieving repository URL: %v", err)
+		os.Exit(1)
+	}
+	repoURLStr := strings.TrimSpace(string(repoURL))
+	repoURLStr = strings.TrimSuffix(repoURLStr, ".git")
+	repoURLStr = strings.Replace(repoURLStr, "git@", "https://", 1)
+	repoURLStr = strings.Replace(repoURLStr, ":", "/", 1)
+
+	prURL := fmt.Sprintf("%s/compare/%s", repoURLStr, branchName)
+	cmd := exec.Command("open", prURL)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		color.Red("error opening pull request: %s, %v", out, err)
+		os.Exit(1)
+	}
 	return nil
 }
