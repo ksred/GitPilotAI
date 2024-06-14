@@ -315,7 +315,10 @@ var prCmd = &cobra.Command{
 	Use:   "pr",
 	Short: "Open a pull request",
 	Run: func(cmd *cobra.Command, args []string) {
-		openPullRequest(args[0])
+		if err := openPullRequest(); err != nil {
+			color.Red("Error opening pull request: %v", err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -502,7 +505,7 @@ func checkoutNewBranchLocally(branchName string) error {
 	return nil
 }
 
-func openPullRequest(branchName string) error {
+func openPullRequest() error {
 	repoURL, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
 	if err != nil {
 		color.Red("error retrieving repository URL: %v", err)
@@ -511,7 +514,14 @@ func openPullRequest(branchName string) error {
 	repoURLStr := strings.TrimSpace(string(repoURL))
 	repoURLStr = strings.TrimSuffix(repoURLStr, ".git")
 	repoURLStr = strings.Replace(repoURLStr, "git@", "https://", 1)
-	repoURLStr = strings.Replace(repoURLStr, ":", "/", 1)
+
+	currentBranchCmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	currentBranchOutput, err := currentBranchCmd.Output()
+	if err != nil {
+		color.Red("error retrieving current branch name: %v", err)
+		os.Exit(1)
+	}
+	branchName := strings.TrimSpace(string(currentBranchOutput))
 
 	prURL := fmt.Sprintf("%s/compare/%s", repoURLStr, branchName)
 	cmd := exec.Command("open", prURL)
