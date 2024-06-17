@@ -18,6 +18,8 @@ build:
 install: build
 	@echo "Installing $(BIN) to $(INSTALL_PATH)"
 	@mv $(BIN) $(INSTALL_PATH)
+	@echo "Creating symlink for $(BIN) as 'gp' in $(INSTALL_PATH)"
+	@ln -sf $(INSTALL_PATH)$(BIN) $(INSTALL_PATH)gp
 
 # Phony targets
 .PHONY: build install
