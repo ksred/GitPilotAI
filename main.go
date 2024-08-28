@@ -406,6 +406,16 @@ func makeOpenAIRequest(body []byte) (string, error) {
 }
 
 func commitChanges(commitMessage string) error {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Are you sure you want to commit the changes? (y/n): ")
+	fmt.Printf("%s\n", commitMessage)
+	confirmation, _ := reader.ReadString('\n')
+	confirmation = strings.TrimSpace(confirmation)
+
+	if confirmation != "y" && confirmation != "Y" {
+		color.Yellow("Commit canceled.")
+		return nil
+	}
 	cmd := exec.Command("git", "commit", "-m", commitMessage)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("git commit failed: %s, %v", out, err)
