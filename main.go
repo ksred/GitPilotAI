@@ -16,6 +16,7 @@ import (
 )
 
 const ApiModel = "gpt-4o" // 128k context window
+const Version = "0.0.1"
 
 type GPTRequest struct {
 	Messages  []GPTMessage `json:"messages"`
@@ -67,6 +68,7 @@ func main() {
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(branchCmd)
 	rootCmd.AddCommand(prCmd)
+	rootCmd.AddCommand(versionCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
 		color.Red(err.Error())
@@ -187,6 +189,14 @@ func initConfig() {
 			viper.Set("OPENAI_API_KEY", envVar)
 		}
 	}
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Display the version",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("GitPilotAI Version: %s\n", Version)
+	},
 }
 
 var configCmd = &cobra.Command{
@@ -331,7 +341,9 @@ func hasGitChanges() bool {
 	return len(out) > 0
 }
 
+// getGitDiff retrieves the staged and unstaged git diff.
 func getGitDiff() string {
+	// Retrieve staged diff
 	stagedDiffCmd := exec.Command("git", "diff", "--staged")
 	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
@@ -339,6 +351,7 @@ func getGitDiff() string {
 		os.Exit(1)
 	}
 
+	// Retrieve unstaged diff
 	unstagedDiffCmd := exec.Command("git", "diff")
 	unstagedDiff, err := unstagedDiffCmd.Output()
 	if err != nil {
@@ -346,6 +359,7 @@ func getGitDiff() string {
 		os.Exit(1)
 	}
 
+	// Combine staged and unstaged diff
 	totalDiff := strings.TrimSpace(string(stagedDiff)) + "\n" + strings.TrimSpace(string(unstagedDiff))
 	return totalDiff
 }
