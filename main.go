@@ -453,11 +453,31 @@ func pushChanges(branchName string) error {
 }
 
 func stageFiles() error {
-	// Using "git add ." to add all changes
-	cmd := exec.Command("git", "add", ".")
+	// List the files to be staged
+	cmd := exec.Command("git", "status", "--porcelain")
+	out, err := cmd.Output()
+	if err != nil {
+		color.Red("Error listing files: %v", err)
+		os.Exit(1)
+	}
+	fmt.Println("Files to be staged:")
+	fmt.Println(string(out))
 
+	// Ask for confirmation
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Are you sure you want to stage these changes? (y/n): ")
+	confirmation, _ := reader.ReadString('\n')
+	confirmation = strings.TrimSpace(confirmation)
+
+	if confirmation != "y" && confirmation != "Y" {
+		color.Yellow("Staging canceled.")
+		return nil
+	}
+
+	// Stage the files
+	cmd = exec.Command("git", "add", ".")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		color.Red("error staging files: %s, %v", out, err)
+		color.Red("Error staging files: %s, %v", out, err)
 		os.Exit(1)
 	}
 
