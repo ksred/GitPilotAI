@@ -212,7 +212,19 @@ var generateCmd = &cobra.Command{
 	Short: "Generate commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
 		gitMessage := ""
-		if len(args) > 0 {
+		if len(args) == 1 && args[0] == "m" {
+			color.Blue("Enter your git message (press Enter to finish):")
+			scanner := bufio.NewScanner(os.Stdin)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line == "" {
+					break
+				}
+				gitMessage += line + "\n"
+			}
+			gitMessage = strings.TrimSpace(gitMessage)
+			color.Blue("Received git message: %s", gitMessage)
+		} else if len(args) > 0 {
 			gitMessage = strings.Join(args, " ")
 			color.Blue("Received git message: %s", gitMessage)
 		}
