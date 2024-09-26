@@ -53,6 +53,8 @@ This information *must* be included in the commit message, aligned to the overal
 
 Here is the additional context:
 %s
+
+---
 `
 
 const BranchNamePrompt = `
