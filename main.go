@@ -49,6 +49,9 @@ Here is the diff output:
 
 const AdditionalCommitMessagePrompt = `
 The following extra context has been added by the user. Take it into account when generating the commit message.
+This information *must* be included in the commit message, aligned to the overall diff changes in the commit.
+
+Here is the additional context:
 %s
 `
 
