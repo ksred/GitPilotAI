@@ -16,6 +16,7 @@ import (
 )
 
 const ApiModel = "gpt-4o" // 128k context window
+const Version = "0.0.1"
 
 type GPTRequest struct {
 	Messages  []GPTMessage `json:"messages"`
@@ -48,7 +49,26 @@ Here is the diff output:
 
 const AdditionalCommitMessagePrompt = `
 The following extra context has been added by the user. Take it into account when generating the commit message.
+This information *must* be included in the commit message, aligned to the overall diff changes in the commit.
+Do not repeat verbatim this input: this input should be used to provide additional context for the commit message.
+
+Example: 
+Diff output:
+- Add a new function to the calculator
+- Fix a bug in the calculator
+
+Additional context:
+- The new function is a divide function
+- The bug is that the calculator cannot divide by zero
+
+Commit message:
+- Add divide function to calculator
+- Fix divide by zero bug in calculator
+
+Here is the additional context:
 %s
+
+---
 `
 
 const BranchNamePrompt = `
@@ -67,6 +87,7 @@ func main() {
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(branchCmd)
 	rootCmd.AddCommand(prCmd)
+	rootCmd.AddCommand(versionCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
 		color.Red(err.Error())
@@ -189,6 +210,14 @@ func initConfig() {
 	}
 }
 
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Display the version",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("GitPilotAI Version: %s\n", Version)
+	},
+}
+
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Configure the API key",
@@ -202,7 +231,19 @@ var generateCmd = &cobra.Command{
 	Short: "Generate commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
 		gitMessage := ""
-		if len(args) > 0 {
+		if len(args) == 1 && args[0] == "m" {
+			color.Blue("Enter your git message (press Enter to finish):")
+			scanner := bufio.NewScanner(os.Stdin)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line == "" {
+					break
+				}
+				gitMessage += line + "\n"
+			}
+			gitMessage = strings.TrimSpace(gitMessage)
+			color.Blue("Received git message: %s", gitMessage)
+		} else if len(args) > 0 {
 			gitMessage = strings.Join(args, " ")
 			color.Blue("Received git message: %s", gitMessage)
 		}
@@ -331,7 +372,9 @@ func hasGitChanges() bool {
 	return len(out) > 0
 }
 
+// getGitDiff retrieves the staged and unstaged git diff.
 func getGitDiff() string {
+	// Retrieve staged diff
 	stagedDiffCmd := exec.Command("git", "diff", "--staged")
 	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
@@ -339,6 +382,7 @@ func getGitDiff() string {
 		os.Exit(1)
 	}
 
+	// Retrieve unstaged diff
 	unstagedDiffCmd := exec.Command("git", "diff")
 	unstagedDiff, err := unstagedDiffCmd.Output()
 	if err != nil {
@@ -346,6 +390,7 @@ func getGitDiff() string {
 		os.Exit(1)
 	}
 
+	// Combine staged and unstaged diff
 	totalDiff := strings.TrimSpace(string(stagedDiff)) + "\n" + strings.TrimSpace(string(unstagedDiff))
 	return totalDiff
 }
@@ -406,16 +451,6 @@ func makeOpenAIRequest(body []byte) (string, error) {
 }
 
 func commitChanges(commitMessage string) error {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Are you sure you want to commit the changes? (y/n): ")
-	fmt.Printf("%s\n", commitMessage)
-	confirmation, _ := reader.ReadString('\n')
-	confirmation = strings.TrimSpace(confirmation)
-
-	if confirmation != "y" && confirmation != "Y" {
-		color.Yellow("Commit canceled.")
-		return nil
-	}
 	cmd := exec.Command("git", "commit", "-m", commitMessage)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("git commit failed: %s, %v", out, err)
