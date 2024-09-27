@@ -50,6 +50,20 @@ Here is the diff output:
 const AdditionalCommitMessagePrompt = `
 The following extra context has been added by the user. Take it into account when generating the commit message.
 This information *must* be included in the commit message, aligned to the overall diff changes in the commit.
+Do not repeat verbatim this input: this input should be used to provide additional context for the commit message.
+
+Example: 
+Diff output:
+- Add a new function to the calculator
+- Fix a bug in the calculator
+
+Additional context:
+- The new function is a divide function
+- The bug is that the calculator cannot divide by zero
+
+Commit message:
+- Add divide function to calculator
+- Fix divide by zero bug in calculator
 
 Here is the additional context:
 %s
