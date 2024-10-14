@@ -364,12 +364,28 @@ var prCmd = &cobra.Command{
 }
 
 func hasGitChanges() bool {
-	out, err := exec.Command("git", "status", "--porcelain").Output()
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+
+	out, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
 	if err != nil {
 		color.Red("Error checking git status: %v", err)
 		os.Exit(1)
 	}
 	return len(out) > 0
+}
+
+// get root folder of the git project
+func getGitRoot() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // getGitDiff retrieves the staged and unstaged git diff.
