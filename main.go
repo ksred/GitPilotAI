@@ -16,6 +16,7 @@ import (
 )
 
 const ApiModel = "gpt-4o" // 128k context window
+const Version = "0.0.1"
 
 type GPTRequest struct {
 	Messages  []GPTMessage `json:"messages"`
@@ -48,7 +49,26 @@ Here is the diff output:
 
 const AdditionalCommitMessagePrompt = `
 The following extra context has been added by the user. Take it into account when generating the commit message.
+This information *must* be included in the commit message, aligned to the overall diff changes in the commit.
+Do not repeat verbatim this input: this input should be used to provide additional context for the commit message.
+
+Example: 
+Diff output:
+- Add a new function to the calculator
+- Fix a bug in the calculator
+
+Additional context:
+- The new function is a divide function
+- The bug is that the calculator cannot divide by zero
+
+Commit message:
+- Add divide function to calculator
+- Fix divide by zero bug in calculator
+
+Here is the additional context:
 %s
+
+---
 `
 
 const BranchNamePrompt = `
@@ -67,6 +87,7 @@ func main() {
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(branchCmd)
 	rootCmd.AddCommand(prCmd)
+	rootCmd.AddCommand(versionCmd)
 	cobra.OnInitialize(initConfig)
 	if err := rootCmd.Execute(); err != nil {
 		color.Red(err.Error())
@@ -189,6 +210,14 @@ func initConfig() {
 	}
 }
 
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Display the version",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("GitPilotAI Version: %s\n", Version)
+	},
+}
+
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Configure the API key",
@@ -202,7 +231,19 @@ var generateCmd = &cobra.Command{
 	Short: "Generate commit messages based on git diff",
 	Run: func(cmd *cobra.Command, args []string) {
 		gitMessage := ""
-		if len(args) > 0 {
+		if len(args) == 1 && args[0] == "m" {
+			color.Blue("Enter your git message (press Enter to finish):")
+			scanner := bufio.NewScanner(os.Stdin)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line == "" {
+					break
+				}
+				gitMessage += line + "\n"
+			}
+			gitMessage = strings.TrimSpace(gitMessage)
+			color.Blue("Received git message: %s", gitMessage)
+		} else if len(args) > 0 {
 			gitMessage = strings.Join(args, " ")
 			color.Blue("Received git message: %s", gitMessage)
 		}
@@ -323,7 +364,13 @@ var prCmd = &cobra.Command{
 }
 
 func hasGitChanges() bool {
-	out, err := exec.Command("git", "status", "--porcelain").Output()
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+
+	out, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
 	if err != nil {
 		color.Red("Error checking git status: %v", err)
 		os.Exit(1)
@@ -331,21 +378,40 @@ func hasGitChanges() bool {
 	return len(out) > 0
 }
 
+// get root folder of the git project
+func getGitRoot() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// getGitDiff retrieves the staged and unstaged git diff.
 func getGitDiff() string {
-	stagedDiffCmd := exec.Command("git", "diff", "--staged")
+	// Retrieve staged diff
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	stagedDiffCmd := exec.Command("git", "-C", root, "diff", "--staged")
 	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
 		color.Red("Error getting staged git diff: %v", err)
 		os.Exit(1)
 	}
 
-	unstagedDiffCmd := exec.Command("git", "diff")
+	// Retrieve unstaged diff
+	unstagedDiffCmd := exec.Command("git", "-C", root, "diff")
 	unstagedDiff, err := unstagedDiffCmd.Output()
 	if err != nil {
 		color.Red("Error getting unstaged git diff: %v", err)
 		os.Exit(1)
 	}
 
+	// Combine staged and unstaged diff
 	totalDiff := strings.TrimSpace(string(stagedDiff)) + "\n" + strings.TrimSpace(string(unstagedDiff))
 	return totalDiff
 }
@@ -406,16 +472,6 @@ func makeOpenAIRequest(body []byte) (string, error) {
 }
 
 func commitChanges(commitMessage string) error {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Are you sure you want to commit the changes? (y/n): ")
-	fmt.Printf("%s\n", commitMessage)
-	confirmation, _ := reader.ReadString('\n')
-	confirmation = strings.TrimSpace(confirmation)
-
-	if confirmation != "y" && confirmation != "Y" {
-		color.Yellow("Commit canceled.")
-		return nil
-	}
 	cmd := exec.Command("git", "commit", "-m", commitMessage)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("git commit failed: %s, %v", out, err)
@@ -427,20 +483,25 @@ func commitChanges(commitMessage string) error {
 
 func pushChanges(branchName string) error {
 	// Check if the branch exists locally
-	cmd := exec.Command("git", "rev-parse", "--verify", branchName)
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "rev-parse", "--verify", branchName)
 	if err := cmd.Run(); err != nil {
 		color.Red("branch %s does not exist locally", branchName)
 		os.Exit(1)
 	}
 
 	// Check if the branch exists remotely
-	cmd = exec.Command("git", "ls-remote", "--exit-code", "--heads", "origin", branchName)
+	cmd = exec.Command("git", "-C", root, "ls-remote", "--exit-code", "--heads", "origin", branchName)
 	if err := cmd.Run(); err == nil {
 		// Branch exists remotely, perform a normal push
-		cmd = exec.Command("git", "push", "origin", branchName)
+		cmd = exec.Command("git", "-C", root, "push", "origin", branchName)
 	} else {
 		// Branch does not exist remotely, set the upstream and push
-		cmd = exec.Command("git", "push", "--set-upstream", "origin", branchName)
+		cmd = exec.Command("git", "-C", root, "push", "--set-upstream", "origin", branchName)
 	}
 
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -454,7 +515,12 @@ func pushChanges(branchName string) error {
 
 func stageFiles() error {
 	// List the files to be staged
-	cmd := exec.Command("git", "status", "--porcelain")
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "status", "--porcelain")
 	out, err := cmd.Output()
 	if err != nil {
 		color.Red("Error listing files: %v", err)
@@ -475,7 +541,7 @@ func stageFiles() error {
 	}
 
 	// Stage the files
-	cmd = exec.Command("git", "add", ".")
+	cmd = exec.Command("git", "-C", root, "add", ".")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("Error staging files: %s, %v", out, err)
 		os.Exit(1)
@@ -486,7 +552,12 @@ func stageFiles() error {
 }
 
 func detectCurrentBranch() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
 		color.Red("error detecting current branch: %v", err)
@@ -526,7 +597,12 @@ func makeOpenAPIRequestFromPrompt(prompt string) (string, error) {
 }
 
 func checkoutNewBranchLocally(branchName string) error {
-	cmd := exec.Command("git", "checkout", "-b", branchName)
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "checkout", "-b", branchName)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("error checking out new branch: %s, %v", out, err)
 		os.Exit(1)
@@ -536,7 +612,12 @@ func checkoutNewBranchLocally(branchName string) error {
 }
 
 func openPullRequest() error {
-	repoURL, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	repoURL, err := exec.Command("git", "-C", root, "config", "--get", "remote.origin.url").Output()
 	if err != nil {
 		color.Red("error retrieving repository URL: %v", err)
 		os.Exit(1)
@@ -545,7 +626,7 @@ func openPullRequest() error {
 	repoURLStr = strings.TrimSuffix(repoURLStr, ".git")
 	repoURLStr = strings.Replace(repoURLStr, "git@", "https://", 1)
 
-	currentBranchCmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	currentBranchCmd := exec.Command("git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD")
 	currentBranchOutput, err := currentBranchCmd.Output()
 	if err != nil {
 		color.Red("error retrieving current branch name: %v", err)
