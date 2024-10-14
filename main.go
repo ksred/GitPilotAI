@@ -391,7 +391,12 @@ func getGitRoot() (string, error) {
 // getGitDiff retrieves the staged and unstaged git diff.
 func getGitDiff() string {
 	// Retrieve staged diff
-	stagedDiffCmd := exec.Command("git", "diff", "--staged")
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	stagedDiffCmd := exec.Command("git", "-C", root, "diff", "--staged")
 	stagedDiff, err := stagedDiffCmd.Output()
 	if err != nil {
 		color.Red("Error getting staged git diff: %v", err)
@@ -399,7 +404,7 @@ func getGitDiff() string {
 	}
 
 	// Retrieve unstaged diff
-	unstagedDiffCmd := exec.Command("git", "diff")
+	unstagedDiffCmd := exec.Command("git", "-C", root, "diff")
 	unstagedDiff, err := unstagedDiffCmd.Output()
 	if err != nil {
 		color.Red("Error getting unstaged git diff: %v", err)
@@ -478,20 +483,25 @@ func commitChanges(commitMessage string) error {
 
 func pushChanges(branchName string) error {
 	// Check if the branch exists locally
-	cmd := exec.Command("git", "rev-parse", "--verify", branchName)
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "rev-parse", "--verify", branchName)
 	if err := cmd.Run(); err != nil {
 		color.Red("branch %s does not exist locally", branchName)
 		os.Exit(1)
 	}
 
 	// Check if the branch exists remotely
-	cmd = exec.Command("git", "ls-remote", "--exit-code", "--heads", "origin", branchName)
+	cmd = exec.Command("git", "-C", root, "ls-remote", "--exit-code", "--heads", "origin", branchName)
 	if err := cmd.Run(); err == nil {
 		// Branch exists remotely, perform a normal push
-		cmd = exec.Command("git", "push", "origin", branchName)
+		cmd = exec.Command("git", "-C", root, "push", "origin", branchName)
 	} else {
 		// Branch does not exist remotely, set the upstream and push
-		cmd = exec.Command("git", "push", "--set-upstream", "origin", branchName)
+		cmd = exec.Command("git", "-C", root, "push", "--set-upstream", "origin", branchName)
 	}
 
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -505,7 +515,12 @@ func pushChanges(branchName string) error {
 
 func stageFiles() error {
 	// List the files to be staged
-	cmd := exec.Command("git", "status", "--porcelain")
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "status", "--porcelain")
 	out, err := cmd.Output()
 	if err != nil {
 		color.Red("Error listing files: %v", err)
@@ -526,7 +541,7 @@ func stageFiles() error {
 	}
 
 	// Stage the files
-	cmd = exec.Command("git", "add", ".")
+	cmd = exec.Command("git", "-C", root, "add", ".")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("Error staging files: %s, %v", out, err)
 		os.Exit(1)
@@ -537,7 +552,12 @@ func stageFiles() error {
 }
 
 func detectCurrentBranch() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
 		color.Red("error detecting current branch: %v", err)
@@ -577,7 +597,12 @@ func makeOpenAPIRequestFromPrompt(prompt string) (string, error) {
 }
 
 func checkoutNewBranchLocally(branchName string) error {
-	cmd := exec.Command("git", "checkout", "-b", branchName)
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command("git", "-C", root, "checkout", "-b", branchName)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		color.Red("error checking out new branch: %s, %v", out, err)
 		os.Exit(1)
@@ -587,7 +612,12 @@ func checkoutNewBranchLocally(branchName string) error {
 }
 
 func openPullRequest() error {
-	repoURL, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
+	root, err := getGitRoot()
+	if err != nil {
+		color.Red("Error getting git root: %v", err)
+		os.Exit(1)
+	}
+	repoURL, err := exec.Command("git", "-C", root, "config", "--get", "remote.origin.url").Output()
 	if err != nil {
 		color.Red("error retrieving repository URL: %v", err)
 		os.Exit(1)
@@ -596,7 +626,7 @@ func openPullRequest() error {
 	repoURLStr = strings.TrimSuffix(repoURLStr, ".git")
 	repoURLStr = strings.Replace(repoURLStr, "git@", "https://", 1)
 
-	currentBranchCmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	currentBranchCmd := exec.Command("git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD")
 	currentBranchOutput, err := currentBranchCmd.Output()
 	if err != nil {
 		color.Red("error retrieving current branch name: %v", err)
